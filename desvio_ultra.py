@@ -13,7 +13,7 @@ class DesvioUltra:
         sensor_int_dir,
         sensor_ext_dir
     ):
-                
+
         self.hub = hub
 
         self.motor_esq = motor_esq
@@ -26,52 +26,67 @@ class DesvioUltra:
 
         self.desviando = False
         self.obstaculo_processado = False
- 
+
     def desviar(self):
+
+        print("INICIANDO DESVIO")
 
         self.desviando = True
 
-        wait(100)
         # Para
-
         self.motor_esq.dc(0)
         self.motor_dir.dc(0)
 
-        wait(1200)
+        wait(200)
 
-        # 90° direita
-
-        self.motor_esq.reset_angle(0)
-
-        self.motor_esq.dc(60)
-        self.motor_dir.dc(-60)
-
-        while abs(self.motor_esq.angle()) < 3000:
-            wait(1)
-
-        # Anda reto para sair da frente do obstáculo
+        # Ré
+        print("RE")
 
         self.motor_esq.reset_angle(0)
 
-        self.motor_esq.dc(50)
-        self.motor_dir.dc(50)
+        self.motor_esq.dc(-50)
+        self.motor_dir.dc(-50)
 
-        while abs(self.motor_esq.angle()) < 1000:
+        while abs(self.motor_esq.angle()) < 200:
             wait(1)
 
-        # 90° esquerda
+        print("FIM RE")
+
+        # Primeira metade da parábola
+        print("CURVA 1")
 
         self.motor_esq.reset_angle(0)
 
-        self.motor_esq.dc(-60)
-        self.motor_dir.dc(60)
+        self.motor_esq.dc(80)
+        self.motor_dir.dc(20)
 
-        while abs(self.motor_esq.angle()) < 300:
+        while abs(self.motor_esq.angle()) < 500:
             wait(1)
 
-        # Procura a linha
+        print("FIM CURVA 1")
 
-        while True:
+        # Curva 2A
+        print("CURVA 2A")
+
+        self.motor_esq.reset_angle(0)
+
+        self.motor_esq.dc(20)
+        self.motor_dir.dc(80)
+
+        while abs(self.motor_esq.angle()) < 250:
+            wait(1)
+
+        print("FIM CURVA 2A")
+
+        # Curva 2B - procurando linha
+        print("CURVA 2B - PROCURANDO LINHA")
+
+        self.motor_esq.reset_angle(0)
+
+        self.motor_esq.dc(20)
+        self.motor_dir.dc(80)
+
+        while abs(self.motor_esq.angle()) < 250:
 
             s1 = self.sensor_ext_esq.reflection()
             s2 = self.sensor_int_esq.reflection()
@@ -84,13 +99,23 @@ class DesvioUltra:
                 s3 < 20 or
                 s4 < 20
             ):
-                break
 
-            self.motor_esq.dc(40)
-            self.motor_dir.dc(40)
+                print("LINHA ENCONTRADA")
 
-            wait(10)
+                self.motor_esq.dc(0)
+                self.motor_dir.dc(0)
 
+                wait(100)
+
+                self.desviando = False
+
+                return
+
+            wait(1)
+
+        print("FIM CURVA 2B")
+
+        # Para
         self.motor_esq.dc(0)
         self.motor_dir.dc(0)
 
@@ -98,24 +123,34 @@ class DesvioUltra:
 
         self.desviando = False
 
+        print("DESVIO FINALIZADO")
+
     def verificar(self):
 
         estado = self.hub.ble.observe(1)
 
+        print("BLE:", estado)
+
+        if self.desviando:
+            return True
+
         if estado is None:
             return False
 
-        # Liberar para próximo obstáculo
         if estado == 0:
+
+            if self.obstaculo_processado:
+                print("SISTEMA REARMADO")
+
             self.obstaculo_processado = False
             return False
 
-        # Executa apenas uma vez
         if (
             estado == 1
-            and not self.desviando
             and not self.obstaculo_processado
         ):
+
+            print("OBSTACULO DETECTADO")
 
             self.obstaculo_processado = True
 
@@ -123,4 +158,4 @@ class DesvioUltra:
 
             return True
 
-        return self.desviando
+        return False
