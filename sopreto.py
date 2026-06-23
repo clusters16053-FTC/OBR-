@@ -32,26 +32,26 @@ desvio = DesvioUltra(
 )
 
 verde = Verde(
-    
-    
     sensor_ext_esq,
     sensor_int_esq,
     sensor_int_dir,
-    sensor_ext_dir
+    sensor_ext_dir,
+    hub.imu
 )
+
 # =========================
 # PIDF
 # =========================
-KP = 8.2
+KP = 7.2
 KI = 0.0
-KD = 1
-KF = 0.4
+KD = 4.8
+KF = 0.2
 
 # =========================
 # VELOCIDADE
 # =========================
 
-VELOCIDADE = 50
+VELOCIDADE = 45
 VELOCIDADE_MIN = 25
 
 KV = 1.0
@@ -74,40 +74,20 @@ while True:
 
     # =========================
     # PRIORIDADE 2
-    # VERDE (CORRIGIDO)
+    # VERDE (Lógica Nova e Centralizada)
     # =========================
 
-    acao = verde.verificar()
-
-    if acao == "esquerda":
-        erro = -200
-
-    elif acao == "direita":
-        erro = 200
-
-    elif acao == "retorno":
-
-        erro = 0
-
-        motor_esq.dc(0)
-        motor_dir.dc(0)
-
-        wait(50)
-
-        ang = hub.imu.heading()
-
-        motor_esq.dc(-80)
-        motor_dir.dc(80)
-
-        while abs(hub.imu.heading() - ang) < 170:
-            wait(5)
-
+    # A própria classe checa o HSV, faz o debounce e executa a curva bloqueante.
+    # Se ela retornar True, significa que executou uma curva, então limpamos o PID.
+    if verde.verificar_e_executar(motor_esq, motor_dir, LIMIAR):
+        erro_anterior = 0
+        integral = 0
         continue
 
     # =========================
-    # LEITURA DOS SENSORES
+    # LEITURA NORMAL DE LINHA
     # =========================
-
+    
     s1 = sensor_ext_esq.reflection()
     s2 = sensor_int_esq.reflection()
     s3 = sensor_int_dir.reflection()
@@ -138,7 +118,6 @@ while True:
         s2 > LIMIAR and
         s3 > LIMIAR
     ):
-
         motor_esq.dc(-50)
         motor_dir.dc(70)
 
@@ -150,7 +129,6 @@ while True:
         s3 > LIMIAR and
         s2 > LIMIAR
     ):
-
         motor_esq.dc(70)
         motor_dir.dc(-50)
 
@@ -158,13 +136,12 @@ while True:
         continue
 
     # =========================
-    # ERRO
+    # CÁLCULO DE ERRO DA LINHA
     # =========================
 
     soma = s1 + s2 + s3 + s4
 
     if soma > 0:
-
         erro = (
             (3 * s1)
             + (1 * s2)
@@ -173,45 +150,33 @@ while True:
         ) / soma
 
         erro *= 20
-
     else:
-
         erro = erro_anterior
 
     # =========================
-    # PID
+    # PROCESSAMENTO DO PID
     # =========================
 
     p = KP * erro
 
     integral += erro
-
-    integral = max(
-        min(integral, 200),
-        -200
-    )
+    integral = max(min(integral, 200), -200)
 
     i = KI * integral
 
     derivada = erro - erro_anterior
-
     d = KD * derivada
 
     if erro > 0:
         ff = KF
-
     elif erro < 0:
         ff = -KF
-
     else:
         ff = 0
 
     correcao = p + i + d + ff
 
-    correcao = max(
-        min(correcao, 50),
-        -50
-    )
+    correcao = max(min(correcao, 120), -120)
 
     # =========================
     # VELOCIDADE DINÂMICA
@@ -240,18 +205,11 @@ while True:
     if 0 < velocidade_dir < 20:
         velocidade_dir = 20
 
-    velocidade_esq = max(
-        min(velocidade_esq, 100),
-        -100
-    )
-
-    velocidade_dir = max(
-        min(velocidade_dir, 100),
-        -100
-    )
+    velocidade_esq = max(min(velocidade_esq, 100), -100)
+    velocidade_dir = max(min(velocidade_dir, 100), -100)
 
     # =========================
-    # MOTORES
+    # ENVIO PARA OS MOTORES
     # =========================
 
     motor_esq.dc(int(velocidade_esq))
