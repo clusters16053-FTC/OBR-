@@ -47,7 +47,7 @@ class DesvioUltra:
         self.motor_esq.dc(-50)
         self.motor_dir.dc(-50)
 
-        while abs(self.motor_esq.angle()) < 200:
+        while abs(self.motor_esq.angle()) < 300:
             wait(1)
 
         print("FIM RE")
@@ -57,10 +57,10 @@ class DesvioUltra:
 
         self.motor_esq.reset_angle(0)
 
-        self.motor_esq.dc(80)
-        self.motor_dir.dc(20)
+        self.motor_esq.dc(15)
+        self.motor_dir.dc(85)
 
-        while abs(self.motor_esq.angle()) < 500:
+        while abs(self.motor_esq.angle()) < 150:
             wait(1)
 
         print("FIM CURVA 1")
@@ -70,10 +70,10 @@ class DesvioUltra:
 
         self.motor_esq.reset_angle(0)
 
-        self.motor_esq.dc(20)
-        self.motor_dir.dc(80)
+        self.motor_esq.dc(85)
+        self.motor_dir.dc(15)
 
-        while abs(self.motor_esq.angle()) < 250:
+        while abs(self.motor_esq.angle()) < 700:
             wait(1)
 
         print("FIM CURVA 2A")
@@ -83,18 +83,16 @@ class DesvioUltra:
 
         self.motor_esq.reset_angle(0)
 
-        self.motor_esq.dc(20)
-        self.motor_dir.dc(80)
+        self.motor_esq.dc(80)
+        self.motor_dir.dc(15)
 
-        while abs(self.motor_esq.angle()) < 250:
+        while abs(self.motor_esq.angle()) < 600:
 
-            s1 = self.sensor_ext_esq.reflection()
             s2 = self.sensor_int_esq.reflection()
             s3 = self.sensor_int_dir.reflection()
             s4 = self.sensor_ext_dir.reflection()
 
             if (
-                s1 < 20 or
                 s2 < 20 or
                 s3 < 20 or
                 s4 < 20
