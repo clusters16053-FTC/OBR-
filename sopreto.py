@@ -6,20 +6,20 @@ from pybricks.tools import wait
 from desvio_ultra import DesvioUltra
 from Verde import Verde
 
-hub = PrimeHub(observe_channels=[1])
+hub = PrimeHub(broadcast_channel=2, observe_channels=[1])
 
 motor_esq = Motor(
-    Port.B,
+    Port.A,
     Direction.COUNTERCLOCKWISE
 )
 
-motor_dir = Motor(Port.A)
+motor_dir = Motor(Port.B)
 
-sensor_ext_esq = ColorSensor(Port.C)
-sensor_int_esq = ColorSensor(Port.D)
+sensor_ext_esq = ColorSensor(Port.F)
+sensor_int_esq = ColorSensor(Port.E)
 
-sensor_int_dir = ColorSensor(Port.E)
-sensor_ext_dir = ColorSensor(Port.F)
+sensor_int_dir = ColorSensor(Port.D)
+sensor_ext_dir = ColorSensor(Port.C)
 
 desvio = DesvioUltra(
     hub,
@@ -36,7 +36,10 @@ verde = Verde(
     sensor_int_esq,
     sensor_int_dir,
     sensor_ext_dir,
-    hub.imu
+    hub.imu,
+    vel_giro=90,
+    tempo_curva=700,
+    tempo_180=1200
 )
 
 # =========================
@@ -45,18 +48,34 @@ verde = Verde(
 KP = 7.2
 KI = 0.0
 KD = 4.8
-KF = 0.2
+KF = 0.4
 
 # =========================
 # VELOCIDADE
 # =========================
 
-VELOCIDADE = 45
+VELOCIDADE = 35
+
+VELOCIDADE_RAMPA     = 80
+VELOCIDADE_MIN_RAMPA = 70
+
+VELOCIDADE_DESCIDA     = 20
+VELOCIDADE_MIN_DESCIDA = 15
+
 VELOCIDADE_MIN = 25
 
 KV = 1.0
 
 LIMIAR = 20
+
+# =========================
+# INCLINAÇÃO
+# =========================
+
+LIMIAR_INCLINACAO_SUBIDA  = 4  # mesmo de antes
+LIMIAR_INCLINACAO_DESCIDA = 2  # detecta descida mais cedo
+
+em_rampa = False
 
 erro_anterior = 0
 integral = 0
@@ -74,24 +93,73 @@ while True:
 
     # =========================
     # PRIORIDADE 2
-    # VERDE (Lógica Nova e Centralizada)
+    # VERDE
     # =========================
 
-    # A própria classe checa o HSV, faz o debounce e executa a curva bloqueante.
-    # Se ela retornar True, significa que executou uma curva, então limpamos o PID.
     if verde.verificar_e_executar(motor_esq, motor_dir, LIMIAR):
         erro_anterior = 0
         integral = 0
         continue
 
     # =========================
+    # PRIORIDADE 3
+    # DETECÇÃO DE INCLINAÇÃO (IMU)
+    # =========================
+
+    pitch = hub.imu.tilt()[1]
+
+    if pitch <= -LIMIAR_INCLINACAO_SUBIDA:
+        # SUBINDO
+        if not em_rampa:
+            em_rampa = True
+            hub.ble.broadcast(True)
+        vel_base = VELOCIDADE_RAMPA
+        vel_min  = VELOCIDADE_MIN_RAMPA
+
+    elif pitch >= LIMIAR_INCLINACAO_DESCIDA:
+        # DESCENDO
+        if not em_rampa:
+            em_rampa = True
+            hub.ble.broadcast(True)
+            # Freia no momento da transição para estabilizar
+            motor_esq.brake()
+            motor_dir.brake()
+            wait(300)
+        vel_base = VELOCIDADE_DESCIDA
+        vel_min  = VELOCIDADE_MIN_DESCIDA
+
+    else:
+        # PLANO
+        if em_rampa:
+            em_rampa = False
+            hub.ble.broadcast(False)
+        vel_base = VELOCIDADE
+        vel_min  = VELOCIDADE_MIN
+
+    # =========================
     # LEITURA NORMAL DE LINHA
     # =========================
-    
+
     s1 = sensor_ext_esq.reflection()
     s2 = sensor_int_esq.reflection()
     s3 = sensor_int_dir.reflection()
     s4 = sensor_ext_dir.reflection()
+
+    # =========================
+    # TODOS NO PRETO
+    # =========================
+
+    if (
+        s1 < LIMIAR and
+        s2 < LIMIAR and
+        s3 < LIMIAR and
+        s4 < LIMIAR
+    ):
+        motor_esq.dc(vel_base)
+        motor_dir.dc(vel_base)
+
+        wait(10)
+        continue
 
     # =========================
     # TODOS NO BRANCO
@@ -103,8 +171,8 @@ while True:
         s3 > 30 and
         s4 > 30
     ):
-        motor_esq.dc(VELOCIDADE)
-        motor_dir.dc(VELOCIDADE)
+        motor_esq.dc(vel_base)
+        motor_dir.dc(vel_base)
 
         wait(10)
         continue
@@ -140,7 +208,6 @@ while True:
     # =========================
 
     soma = s1 + s2 + s3 + s4
-
     if soma > 0:
         erro = (
             (3 * s1)
@@ -176,20 +243,20 @@ while True:
 
     correcao = p + i + d + ff
 
-    correcao = max(min(correcao, 120), -120)
+    correcao = max(min(correcao, 140), -140)
 
     # =========================
     # VELOCIDADE DINÂMICA
     # =========================
 
     velocidade_atual = (
-        VELOCIDADE
+        vel_base
         - abs(erro) * KV
     )
 
     velocidade_atual = max(
         velocidade_atual,
-        VELOCIDADE_MIN
+        vel_min
     )
 
     velocidade_esq = velocidade_atual + correcao
