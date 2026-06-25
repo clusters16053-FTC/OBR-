@@ -51,11 +51,52 @@ class Verde:
         if not verde_esq and not verde_dir:
             return False
 
+        # Janela de 100ms para o outro lado também confirmar verde
+        espera = StopWatch()
+        while espera.time() < 100:
+            if not verde_esq:
+                verde_esq = self.eh_verde(self.sensor_ext_esq) or self.eh_verde(self.sensor_int_esq)
+            if not verde_dir:
+                verde_dir = self.eh_verde(self.sensor_int_dir) or self.eh_verde(self.sensor_ext_dir)
+            if verde_esq and verde_dir:
+                break
+            wait(5)
+
         self.cronometro.reset()
 
         if verde_esq and verde_dir:
             print("VERDE DOS 2 LADOS - girando 180 graus")
-            self._girar_por_tempo(motor_esq, motor_dir, self.vel_giro, self.tempo_180)
+            angulo_inicial = self.imu.heading()
+
+            # Gira 150 graus pré-programado pelo IMU
+            print("GIRANDO 150 graus pre-programado...")
+            while True:
+                motor_esq.dc(self.vel_giro)
+                motor_dir.dc(-self.vel_giro)
+                girado = abs(self.imu.heading() - angulo_inicial)
+                if girado > 180:
+                    girado = 360 - girado
+                if girado >= 150:
+                    break
+                wait(5)
+
+            # Continua girando até achar a linha
+            print("BUSCANDO LINHA - girando 180...")
+            while True:
+                motor_esq.dc(self.vel_giro)
+                motor_dir.dc(-self.vel_giro)
+                if (
+                    self.sensor_ext_esq.reflection() < limiar or
+                    self.sensor_int_esq.reflection() < limiar or
+                    self.sensor_int_dir.reflection() < limiar or
+                    self.sensor_ext_dir.reflection() < limiar
+                ):
+                    print("LINHA ENCONTRADA - 180")
+                    break
+                wait(5)
+
+            motor_esq.brake()
+            motor_dir.brake()
             wait(100)
             return True
 
