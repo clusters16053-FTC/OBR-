@@ -73,7 +73,7 @@ LIMIAR = 20
 # =========================
 
 LIMIAR_INCLINACAO_SUBIDA  = 4  # mesmo de antes
-LIMIAR_INCLINACAO_DESCIDA = 2  # detecta descida mais cedo
+LIMIAR_INCLINACAO_DESCIDA = 4 # detecta descida mais cedo
 
 em_rampa = False
 
